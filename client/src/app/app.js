@@ -32,7 +32,7 @@ angular.module('app').constant('ATHENAWEBAPP_CONFIG', {
 });
 
 angular.module('app').constant('DB_CONFIG', {
-	isDevNet: false
+	isDevNet: true
 });
 
 
