@@ -8,12 +8,14 @@ angular.module('resources.productbacklog').factory('ProductBacklog', ['dbResourc
   };
    
   ProductBacklog.forProject = function (projectId, successcb, errorcb) {
-    return ProductBacklog.query({query:{projectId:projectId}}, successcb, errorcb);
+    return ProductBacklog.forResource('projects', projectId, successcb, errorcb);
+    //return ProductBacklog.query({query:{projectId:projectId}}, successcb, errorcb);
   };
 
   ProductBacklog.forSprint = function (sprintId, successcb, errorcb) {
   	console.log("Inside Product Backlog for sprint=");
-    return ProductBacklog.query({query:{sprintId:sprintId}}, successcb, errorcb);
+    return ProductBacklog.forResource('sprints', sprintId, successcb, errorcb);
+    //return ProductBacklog.query({query:{sprintId:sprintId}}, successcb, errorcb);
   };
 
   return ProductBacklog;
