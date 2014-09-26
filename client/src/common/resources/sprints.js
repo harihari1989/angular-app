@@ -14,10 +14,10 @@ angular.module('resources.sprints').factory('Sprints', [
 		};
 
 		Sprints.forProject = function (projectId, successcb, errorcb) {
-			return Sprints.query({projectId:projectId}, successcb, errorcb);
+			return Sprints.query({query:{projectId:projectId}}, successcb, errorcb);
 		};
 		Sprints.getSprint = function (sprintId, successcb, errorcd){
-			return Sprints.query({sprintId:sprintId}, successcb, errorcb);
+			return Sprints.query({query:{sprintId:sprintId}}, successcb, errorcb);
 		};
 
 		Sprints.prototype.isExpired = function () {

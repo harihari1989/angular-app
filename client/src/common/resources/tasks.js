@@ -186,7 +186,7 @@ angular.module('resources.tasks')
 		Tasks.forProductBacklogItem = function (productBacklogItem, successcb, errorcb) {
 			// return Tasks.forResource('productbacklog', productBacklogItem.$id(), successcb, errorcb);
 
-			return Tasks.query({productBacklogItem:productBacklogItem}, successcb, errorcb);
+			return Tasks.query({query:{productBacklogItemId:productBacklogItem.$id()}}, successcb, errorcb);
 		};
 
 		Tasks.forProductBacklogItemId = function (productBacklogItemId, successcb, errorcb) {
