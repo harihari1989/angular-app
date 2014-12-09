@@ -1,4 +1,3 @@
-
 angular.module('projects', [
 	'resources.projects',
 	'resources.users',
@@ -7,6 +6,7 @@ angular.module('projects', [
 	'sprints',
 	'tasksnew',
 	'users',
+	'taskclass',
 	'directives.datelookup',
 	'directives.datecombofromto',
 	'directives.helptip',
@@ -17,9 +17,11 @@ angular.module('projects', [
 	'directives.icon',
 	'directives.actionicon',
 	'directives.test',
+	'directives.tableactive',
 	'services.crud',
 	'security.authorization',
 	'services.i18nNotifications',
+	'resources.suggestions',
 	'underscore'
 ])
 
@@ -42,11 +44,12 @@ angular.module('projects', [
 			projects: ['Projects', function(Projects) { return Projects.all(); }]
 			// adminUser: securityAuthorizationProvider.requireAdminUser
 		})
-		.whenNew({
-			project: ['Projects', function(Projects) { return new Projects(); }],
-			users: getAllUsers,
-			adminUser: securityAuthorizationProvider.requireAdminUser
-		})
+		// .whenNew({
+		// 	project: ['Projects', function(Projects) { return new Projects(); }],
+		// 	users: getAllUsers,
+		// 	adminUser: securityAuthorizationProvider.requireAdminUser
+		// })
+
 		// project is not getting assigned, need to figure out why
 		// .whenView({
 		// 	project:[
@@ -75,30 +78,6 @@ angular.module('projects', [
 	}
 ])
 
-// .config([
-// 	'$routeProvider',
-// 	'securityAuthorizationProvider',
-// 	function (
-// 		$routeProvider,
-// 		securityAuthorizationProvider
-// 	) {
-// 		$routeProvider.when('/projects', {
-// 			templateUrl:'projects/projects-list.tpl.html',
-// 			controller:'ProjectsListCtrl',
-// 			resolve:{
-// 				projects:[
-// 					'Projects',
-// 					function (Projects) {
-// 						//TODO: fetch only for the current user
-// 						return Projects.all();
-// 					}
-// 				]
-// 				// authenticatedUser: securityAuthorizationProvider.requireAuthenticatedUser
-// 			}
-// 		});
-// 	}
-// ])
-
 .controller('ProjectsListCtrl', [
 	'$scope',
 	'$location',
@@ -117,6 +96,7 @@ angular.module('projects', [
 		$q
 	) {
 		$scope.projects = projects;
+		console.log("projects");
 		console.log(projects);
 		security.requestCurrentUser();
 
@@ -137,24 +117,67 @@ angular.module('projects', [
 		// 	}
 		// );
 
+		$scope.projectsConf = {
+			resource : {
+				key : 'projects',
+				prettyName : 'Projects',
+				altPrettyName : 'Projects',
+				link : $scope.manageProjects,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.projectsCrudHelpers
+			},
+			pagination : {
+				currentPage : 1,
+				itemsPerPage : 10
+			},
+			sortinit : {
+				fieldKey : 'name',
+				reverse : false
+			},
+			tableColumns : [
+				{
+					key : 'name',
+					prettyName : 'Name',
+					widthClass : 'col-md-2'
+				},
+				{
+					key : 'startdate',
+					type: 'date',
+					prettyName : 'Start Date',
+					widthClass : 'col-md-2'
+				},
+				{
+					key : 'enddate',
+					type: 'date',
+					prettyName : 'End Date',
+					widthClass : 'col-md-2'
+				},
+				{
+					key : 'status',
+					prettyName : 'Status',
+					widthClass : 'col-md-2'
+				}
+			]
+		};
+
 		$scope.viewProject = function (project) {
-			console.log('view is being called');
 			$location.path('/projects/'+project.$id());
 		};
 
-		$scope.manageBacklog = function (project) {
-			$location.path('/projects/'+project.$id()+'/productbacklog');
-		};
+		// $scope.manageBacklog = function (project) {
+		// 	$location.path('/projects/'+project.$id()+'/productbacklog');
+		// };
 
-		$scope.manageSprints = function (project) {
-			$location.path('/projects/'+project.$id()+'/sprints');
-		};
+		// $scope.manageSprints = function (project) {
+		// 	$location.path('/projects/'+project.$id()+'/sprints');
+		// };
 
-		$scope.getMyRoles = function(project) {
-			if ( security.currentUser ) {
-				return project.getRoles(security.currentUser.id);
-			}
-		};
+		// $scope.getMyRoles = function(project) {
+		// 	if ( security.currentUser ) {
+		// 		return project.getRoles(security.currentUser.id);
+		// 	}
+		// };
+
 	}
 ])
 
@@ -162,15 +185,22 @@ angular.module('projects', [
 	'$scope',
 	'$location',
 	'i18nNotifications',
-	// 'users',
+	//'users',
 	'project',
 	'crudListMethods',
+	'crudEditHandlers',
 	'_',
-	function($scope, $location, i18nNotifications, project, crudListMethods, _) {
-	// function($scope, $location, i18nNotifications, users, project, crudListMethods, _) {
-
+	function(
+		$scope,
+		$location,
+		i18nNotifications,
+		project,
+		crudListMethods,
+		crudEditHandlers,
+		_
+	) {
 		$scope.project = project;
-		// $scope.users = users;
+		//$scope.users = users;
 		if( !angular.isDefined($scope.project.projectProfile) ){
 			$scope.project.projectProfile = {
 				ID : 1
@@ -180,15 +210,35 @@ angular.module('projects', [
 
 		$scope.projectscrudhelpers = {};
 		angular.extend($scope.projectscrudhelpers, crudListMethods('/projects'));
+		angular.extend($scope, crudEditHandlers('project'));
 
-		$scope.onSave = function(project) {
-			i18nNotifications.pushForNextRoute('crud.project.save.success', 'success', {id : project.$id()});
-			$location.path('/projects/' + project.$id());
-		};
+		// $scope.onSave = function(savedProject) {
+		// 	return {
+		// 		key: 'crud.project.save.success',
+		// 		type: 'success',
+		// 		context: {id : savedProject.$id()}
+		// 	};
 
-		$scope.onError = function() {
-			i18nNotifications.pushForCurrentRoute('crud.project.save.error', 'error');
-		};
+		// 	// i18nNotifications.pushForNextRoute('crud.project.save.success', 'success', {id : project.$id()});
+		// 	// $location.path('/projects/' + project.$id());
+		// 	// var projectId = project.$id();
+		// 	// if( angular.isDefined(projectId) ){
+		// 	// 	$location.path('/projects/' + projectId);
+		// 	// }
+		// 	// else {
+		// 	// 	$location.path('/projects/');
+		// 	// }
+		// };
+
+		// $scope.onSaveError = function(error) {
+		// 	return {
+		// 		key: 'crud.project.save.error',
+		// 		type: 'error',
+		// 		context: {
+		// 			error: error
+		// 		}
+		// 	};
+		// };
 
 	}
 ])

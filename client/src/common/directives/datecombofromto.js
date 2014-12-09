@@ -23,6 +23,7 @@ angular.module('directives.datecombofromto', [
 			},
 			link: function(scope, element, attrs, ngform) {
 				scope.fromDate = scope.fromDate || new Date();
+				//console.log("Column Size="+scope.colSize);
 				if( !angular.isDefined(scope.toDate) ){
 					// console.log("GOING IN THE APPLY FUNCTION!!!");
 					var date = new Date();
@@ -61,8 +62,8 @@ angular.module('directives.datecombofromto', [
 					};
 				}
 
-				console.log("PRINTING THE FORM OBJECT from the date combo isolated scope");
-				console.log(ngform);
+				// console.log("PRINTING THE FORM OBJECT from the date combo isolated scope");
+				// console.log(ngform);
 			}
 		};
 	}

@@ -1,15 +1,23 @@
 angular.module('resources.sprints', [
-	'mongolabResource',
+	'dbResource',
 	'moment'
 ]);
 angular.module('resources.sprints').factory('Sprints', [
-	'mongolabResource',
+	'dbResource',
 	'moment',
-	function (mongolabResource, moment) {
+	function (dbResource, moment) {
 
-		var Sprints = mongolabResource('sprints');
+		var Sprints = dbResource('sprints');
+
+		Sprints.getCollectionName = function(){
+			return 'sprints';
+		};
+
 		Sprints.forProject = function (projectId, successcb, errorcb) {
-			return Sprints.query({projectId:projectId}, successcb, errorcb);
+			return Sprints.forResource('projects', projectId, successcb, errorcb);
+		};
+		Sprints.getSprint = function (sprintId, successcb, errorcd){
+			return Sprints.forResource('sprints', sprintId, successcb, errorcb);
 		};
 
 		Sprints.prototype.isExpired = function () {
@@ -80,6 +88,9 @@ angular.module('resources.sprints').factory('Sprints', [
 			return status.key;
 		};
 
+		Sprints.prototype.getBacklogItems = function () {
+			return this.sprintBacklog;
+		};
 		return Sprints;
 	}
 ]);

@@ -1,15 +1,23 @@
-angular.module('mongolabResource', ['resourceCache'])
+angular.module('mongolabResource', [
+	'services.dictionary',
+	'resourceCache',
+	'underscore'
+])
 .factory('mongolabResource', [
 	'MONGOLAB_CONFIG',
 	'$http',
 	'$q',
 	'$timeout',
 	'resourceCacheFactory',
-	function (MONGOLAB_CONFIG, $http, $q, $timeout, resourceCacheFactory) {
+	'dictionary',
+	'_',
+	function (MONGOLAB_CONFIG, $http, $q, $timeout, resourceCacheFactory, dictionary, _) {
 
 		function MongolabResourceFactory(collectionName) {
 
+
 			var url = MONGOLAB_CONFIG.baseUrl + MONGOLAB_CONFIG.dbName + '/collections/' + collectionName;
+			console.log("resource url="+url);
 			var defaultParams = {};
 			if (MONGOLAB_CONFIG.apiKey) {
 				defaultParams.apiKey = MONGOLAB_CONFIG.apiKey;
@@ -23,8 +31,8 @@ angular.module('mongolabResource', ['resourceCache'])
 						var result;
 						if (isArray) {
 							result = [];
-							console.log("Resource Count for: " + collectionName);
-							console.log("Count is : " + response.data.length);
+							// console.log("Resource Count for: " + collectionName);
+							// console.log("Count is : " + response.data.length);
 							for (var i = 0; i < response.data.length; i++) {
 								result.push(new Resource(response.data[i]));
 							}
@@ -41,6 +49,8 @@ angular.module('mongolabResource', ['resourceCache'])
 								result = new Resource(response.data);
 							}
 						}
+						// console.log("resourceCache is :");
+						// console.log(resourceCache.get(url + '/' + result.$id()));
 						scb(result, response.status, response.headers, response.config);
 						return result;
 					},
@@ -61,13 +71,24 @@ angular.module('mongolabResource', ['resourceCache'])
 							// var httpPromiseRetry = $http.get(response.config);
 							return thenFactoryMethod(httpPromiseRetry, scb, ecb, isArray);
 							return undefined;
+							// return $q.reject("405 Retry failed !");
+						}
+						else if (response.data.message === 'Document not found') {
+							ecb(response, response.status, response.headers, response.config);
+							return $q.reject("The entity you were looking for, does not exist. It could be a deleted item");
 						}
 						else {
-							ecb(undefined, response.status, response.headers, response.config);
-							return undefined;
+							// ecb(undefined, response.status, response.headers, response.config);
+							// console.log("respone is");
+							// console.log(response);
+							console.log("failed response");
+							console.log(JSON.stringify(response.data));
 
+							ecb(response, response.status, response.headers, response.config);
+							// return undefined;
+							// return $q.reject("There seems to be some unknown error");
+							return $q.reject(JSON.stringify(response.data) || "There seems to be some unknown error");
 						}
-
 					}
 				);
 			};
@@ -76,64 +97,214 @@ angular.module('mongolabResource', ['resourceCache'])
 				angular.extend(this, data);
 			};
 
-			var dirtyflag = false;
-			var collection = collectionName;
-			var setDirty = function () {
-				dirtyflag = true;
-				console.log(collection + ' is dirty !!!!!!!');
+			// Maps collection names to the names used as forein keys
+			// in the objects
+			// These relations will be moved to the backend
+			// persistence later
+			var resourceForeignKeyMap = dictionary('resourceForeignKeyMap');
+			resourceForeignKeyMap.setList({
+				tasks: {
+					default : 'taskId'
+				},
+				projects: {
+					default: 'projectId'
+				},
+				sprints: {
+					default: 'sprintId'
+				},
+				productbacklog: {
+					default: 'productBacklogItemId'
+				},
+				users: {
+					default: 'userId'
+				},
+				scrumupdates: {
+					default: 'scrumUpdateId'
+				}
+			});
+
+			// Specific resource implementations can override the
+			// configuration here for the foreignKeyMap
+			Resource.foreignKeyMap = resourceForeignKeyMap;
+
+			Resource.getResourceKey = function (collectionName, relationKey) {
+				// return resourceForeignKeyMap[collectionName];
+				if( !angular.isDefined(relationKey) ){
+					relationKey = 'default';
+				}
+				var relationMap = resourceForeignKeyMap.lookUp(collectionName);
+				if( angular.isDefined(relationMap) ){
+					return relationMap[relationKey];
+				}
+				return '';
 			};
 
-			var clearDirty = function () {
-				dirtyflag = false;
-				console.log(collection + ' is clear !!!!!!!');
-			};
+			Resource.getSimpleIds = function (itemsOrIds) {
+				var qin = [];
+				angular.forEach(itemsOrIds, function (itemOrId) {
+					if(!!itemOrId){
+						if( angular.isObject(itemOrId) ){
+							var item = itemOrId;
+							qin.push(item.$id());
+						}
+						else {
+							var id = itemOrId;
+							qin.push(id);
+						}
+					}
+				});
+				return qin;
+			}
 
-			var isDirty = function () {
-				return dirtyflag;
-			};
+			// var getObjectIds = function (itemIds) {
+			// 	var qin = [];
+			// 	angular.forEach(itemIds, function (id) {
+			// 		if(!!id){
+			// 			qin.push({$oid: id});
+			// 		}
+			// 	});
+			// 	return qin;
+			// }
 
-			Resource.checkDirty = function () {
-				return isDirty();
+			Resource.getObjectIds = function (itemsOrIds) {
+				var qin = [];
+				angular.forEach(itemsOrIds, function (itemOrId) {
+					if(!!itemOrId){
+						if( angular.isObject(itemOrId) ){
+							var item = itemOrId;
+							qin.push(item._id);
+						}
+						else {
+							var id = itemOrId;
+							qin.push({$oid: id});
+						}
+					}
+				});
+				return qin;
+			}
+
+			var cacheService = resourceCacheFactory(collectionName);
+			var resourceCache = cacheService.getResourceCache();
+
+			/**************************************************
+			 * Query items
+			 **************************************************/
+			Resource.query = function (queryJson, successcb, errorcb) {
+				var params = angular.isObject(queryJson) ? {q:JSON.stringify(queryJson)} : {};
+				// cacheService.checkAndClear(url, queryJson);
+				cacheService.checkAndClear('GLOBAL'); // this is temporary until cache dependencies are implemented
+				console.log("Resource Cache="+resourceCache);
+				var httpPromise = $http.get(url, {cache:resourceCache, params:angular.extend({}, defaultParams, params)});
+
+				return thenFactoryMethod(httpPromise, successcb, errorcb, true);
 			};
 
 			Resource.all = function (cb, errorcb) {
 				return Resource.query({}, cb, errorcb);
 			};
 
-			var resourceCache = resourceCacheFactory(collectionName);
-			Resource.query = function (queryJson, successcb, errorcb) {
-				var params = angular.isObject(queryJson) ? {q:JSON.stringify(queryJson)} : {};
-
-				if( isDirty() ){
-					resourceCache.removeAll();
-					clearDirty();
-				}
-
-				var httpPromise = $http.get(url, {cache:resourceCache, params:angular.extend({}, defaultParams, params)});
-
-				return thenFactoryMethod(httpPromise, successcb, errorcb, true);
-			};
-
 			Resource.getById = function (id, successcb, errorcb) {
-				// var httpPromise = $http.get(url + '/' + id, {params:defaultParams});
-				if( isDirty() ){
-					resourceCache.removeAll();
-					clearDirty();
-				}
-				var httpPromise = $http.get(url + '/' + id, {cache:resourceCache, params:angular.extend({}, defaultParams)});
+				var itemUrl = url + '/' + id;
+				// cacheService.checkAndClear(itemUrl);
+				cacheService.checkAndClear('GLOBAL'); // this is temporary until cache dependencies are implemented
+
+				var httpPromise = $http.get(itemUrl, {cache:resourceCache, params:angular.extend({}, defaultParams)});
 				return thenFactoryMethod(httpPromise, successcb, errorcb);
 			};
 
 			Resource.getByIds = function (ids, successcb, errorcb) {
-				var qin = [];
-				angular.forEach(ids, function (id) {
-					qin.push({$oid: id});
-				});
-				return Resource.query({_id:{$in:qin}}, successcb, errorcb, true);
+				console.log("\n:Getting user by Ids:\n");
+				return Resource.query({_id:{$in:Resource.getObjectIds(ids)}}, successcb, errorcb, true);
 			};
 
-			//instance methods
+			// Query for the current resource based on other resource foreign key
+			// eg. get all scrumUpdates for a task
+			// ScrumUpdates.forResource('tasks', 123, successcb, errrorcb);
+			Resource.forResource = function (collectionName, itemOrId, successcb, errorcb) {
+				var itemId;
+				if( angular.isObject(itemOrId) ){
+					var item = itemOrId;
+					itemId = item.$id();
+				}
+				else {
+					itemId = itemOrId;
+				}
+				var resourceForeignKey = Resource.getResourceKey(collectionName);
+				var query = {};
+				query[resourceForeignKey] = itemId;
+				return Resource.query(query, successcb, errorcb);
+			};
 
+			// Query for the current resource based on a list of other resource
+			// foreign keys
+			// eg. get all scrumUpdates for a list of task ids
+			// ScrumUpdates.forResourceList('tasks', [123, 456], successcb, errrorcb);
+			Resource.forResourceList = function (collectionName, itemsOrIds, successcb, errorcb) {
+				var resourceForeignKey = Resource.getResourceKey(collectionName);
+				var query = {};
+				query[resourceForeignKey] = {$in:Resource.getSimpleIds(itemsOrIds)};
+				return Resource.query(query, successcb, errorcb);
+			};
+
+			/**************************************************
+			 * Save items
+			 **************************************************/
+			Resource.saveMultiple = function (items, successcb, errorcb) {
+				var httpPromise = $http.post(url, items, {params:defaultParams});
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
+				return thenFactoryMethod(httpPromise, successcb, errorcb);
+			};
+
+			/**************************************************
+			 * Update items
+			 **************************************************/
+			Resource.updateMultiple = function (query, update, successcb, errorcb) {
+				var params = {m: "true", q:JSON.stringify(query)};
+				// var updateJson = JSON.stringify(update);
+				var updateJson = JSON.stringify({$set: update});
+				console.log("update json is:");
+				console.log(updateJson);
+				var httpPromise = $http.put(url, updateJson, {params:angular.extend({}, defaultParams, params)});
+				// cacheService.setDirty(itemUrl);
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
+				return thenFactoryMethod(httpPromise, successcb, errorcb);
+			};
+
+			Resource.updateMultipleItems = function (itemsOrIds, update, successcb, errorcb) {
+				var objectIds = Resource.getObjectIds(itemsOrIds);
+				console.log("object ids are");
+				console.log(objectIds);
+				return Resource.updateMultiple({_id:{$in:objectIds}}, update, successcb, errorcb);
+			};
+
+			/**************************************************
+			 * Remove items
+			 **************************************************/
+			Resource.removeMultiple = function (query, successcb, errorcb) {
+				// var params = {q:JSON.stringify(query)};
+				// Delete method does not seem to be supported by the rest api
+				// var httpPromise = $http['delete'](url, {params:angular.extend({}, defaultParams, params)});
+				// // cacheService.setDirty(itemUrl);
+				// cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
+				// return thenFactoryMethod(httpPromise, successcb, errorcb);
+				return Resource.updateMultiple(query, [], successcb, errorcb);
+			};
+
+			Resource.removeMultipleItems = function (itemsOrIds, successcb, errorcb) {
+				var objectIds = Resource.getObjectIds(itemsOrIds);
+				console.log("object ids are");
+				console.log(objectIds);
+				return Resource.removeMultiple({_id:{$in:objectIds}}, successcb, errorcb);
+			};
+
+			Resource.removeAll = function (successcb, errorcb) {
+				return Resource.removeMultiple({}, successcb, errorcb);
+			};
+
+
+			/**************************************************
+			 * Instance methods
+			 **************************************************/
 			Resource.prototype.$id = function () {
 				if (this._id && this._id.$oid) {
 					return this._id.$oid;
@@ -142,19 +313,50 @@ angular.module('mongolabResource', ['resourceCache'])
 
 			Resource.prototype.$save = function (successcb, errorcb) {
 				var httpPromise = $http.post(url, this, {params:defaultParams});
-				setDirty();
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
 				return thenFactoryMethod(httpPromise, successcb, errorcb);
 			};
 
 			Resource.prototype.$update = function (successcb, errorcb) {
-				var httpPromise = $http.put(url + "/" + this.$id(), angular.extend({}, this, {_id:undefined}), {params:defaultParams});
-				setDirty();
+				var itemUrl = url + "/" + this.$id();
+
+				// setCacheEntry(itemUrl, this);
+				// var httpPromise = $http.put(itemUrl, angular.extend({}, this, {_id:undefined}), {cache:resourceCache, params:defaultParams});
+
+				var httpPromise = $http.put(itemUrl, angular.extend({}, this, {_id:undefined}), {params:defaultParams});
+
+				// cacheService.setDirty(itemUrl);
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
+				return thenFactoryMethod(httpPromise, successcb, errorcb);
+			};
+
+			Resource.prototype.$updateFields = function (updateFields, successcb, errorcb) {
+				var objectIds = Resource.getObjectIds([this.$id()]);
+				// var params = {q:JSON.stringify({_id:{$in:objectIds}})};
+				var params = {q:JSON.stringify({_id:objectIds[0]})};
+				var updateJson = JSON.stringify({$set: updateFields});
+
+				// setCacheEntry(itemUrl, this);
+				// var httpPromise = $http.put(itemUrl, angular.extend({}, this, {_id:undefined}), {cache:resourceCache, params:defaultParams});
+
+				// NOTE: the following does not work as angular strips out any
+				// starting with $, for $set is stripped out and the request payload
+				// is empty (leaving this comment here as a warning for future reference)
+				// var httpPromise = $http.put(itemUrl, angular.extend({}, {$set: updateFields}), {params:defaultParams});
+				var httpPromise = $http.put(url, updateJson, {params:angular.extend({}, defaultParams, params)});
+
+				// cacheService.setDirty(itemUrl);
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
 				return thenFactoryMethod(httpPromise, successcb, errorcb);
 			};
 
 			Resource.prototype.$remove = function (successcb, errorcb) {
-				var httpPromise = $http['delete'](url + "/" + this.$id(), {params:defaultParams});
-				setDirty();
+				// return thenFactoryMethod($q.reject("Failing remove"), successcb, errorcb);
+				var itemUrl = url + "/" + this.$id();
+				var httpPromise = $http['delete'](itemUrl, {params:defaultParams});
+
+				// cacheService.setDirty(itemUrl);
+				cacheService.setDirty('GLOBAL'); // this is temporary until cache dependencies are implemented
 				return thenFactoryMethod(httpPromise, successcb, errorcb);
 			};
 
@@ -169,5 +371,16 @@ angular.module('mongolabResource', ['resourceCache'])
 			return Resource;
 		}
 		return MongolabResourceFactory;
+	}
+]);
+
+angular.module('resourceCache', [])
+.factory('resourceCacheFactory', [
+	'$cacheFactory',
+	function($cacheFactory) {
+		function ResourceCacheFactory(collectionName) {
+			return $cacheFactory(collectionName);
+		}
+		return ResourceCacheFactory;
 	}
 ]);

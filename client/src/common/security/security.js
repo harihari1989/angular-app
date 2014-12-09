@@ -66,12 +66,15 @@ angular.module('security.service', [
 
 			// Attempt to authenticate a user by the given email and password
 			login: function(email, password) {
+				console.log("Inside Login:");
 				email = 'admin@gmail.com';
 				password = 'admin';
 				// var request = $http.post('/login', {email: email, password: password});
-				var request = $http.post('/login', {email: email, password: password});
+				var request = $http.post('/login', {email: email, password: password}, {withCredentials: true});
 				return request.then(
 					function(response) {
+						console.log("current user is:");
+						console.log(response.data.user);
 						service.currentUser = response.data.user;
 						if ( service.isAuthenticated() ) {
 							closeLoginDialog(true);

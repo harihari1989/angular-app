@@ -6,6 +6,12 @@
 	<div class="panel panel-primary">
 		<div class="panel-heading">
 			<strong>Sprint</strong>
+			<span class="pull-right">
+				<action-icon icon="warning-sign" tip="Cannot edit an expired sprint" ng-show="sprint.isExpired()" invert="true"></action-icon>
+				<!-- <action-icon icon="edit" action="sprintsCrudHelpers.edit(sprint.$id())" tip="Edit Sprint" invert="true" ng-hide="sprint.isExpired()"></action-icon> -->
+				<action-icon icon="edit" action="sprintsCrudHelpers.edit(sprint.$id())" tip="Edit Sprint" invert="true"></action-icon>
+				<!-- <button class="btn btn-primary" role="button" ng-click="sprintsCrudHelpers.edit(sprint.$id())" ng-hide="sprint.isExpired()" ng-cloak><icon id="edit"></icon> Edit Sprint</button> -->
+			</span>
 		</div>
 	</div>
 
@@ -18,7 +24,7 @@
 				<property-bar properties="sprint.attributeValuesToDisplay" root-div-class="media-object pull-right" reverse="true" ></property-bar>
 				<div class="media-body">
 					<label class="media-heading">{{sprint.name}}</label>
-					<br /><div class="badge" ng-cloak><strong>{{sprint.$id()}}</strong></div>
+					<p><span class="badge" ng-cloak><strong>{{sprint.$id()}}</strong></span></p>
 				</div>
 			</div>
 
@@ -36,26 +42,147 @@
 					<!-- </span> -->
 					<!-- <button class="btn btn-primary media-object pull-right" role="button" ng-click="sprintsCrudHelpers.edit(sprint.$id())" ng-disabled="sprint.isExpired()" tooltip="editToolTip()" ng-cloak><icon id="edit"></icon> <icon id="warning-sign"></icon> Edit Sprint</button> -->
 					
-					<span class="media-object pull-right">
-						<action-icon icon="warning-sign" tip="Cannot edit an expired sprint" ng-show="sprint.isExpired()"></action-icon>
- 						<button class="btn btn-primary" role="button" ng-click="sprintsCrudHelpers.edit(sprint.$id())" ng-hide="sprint.isExpired()" ng-cloak><icon id="edit"></icon> Edit Sprint</button>
-					</span>
-
+					<!-- <span class="media-object pull-right"> -->
+					<!-- 	<action-icon icon="warning-sign" tip="Cannot edit an expired sprint" ng-show="sprint.isExpired()"></action-icon> -->
+					<!-- 	<button class="btn btn-primary" role="button" ng-click="sprintsCrudHelpers.edit(sprint.$id())" ng-hide="sprint.isExpired()" ng-cloak><icon id="edit"></icon> Edit Sprint</button> -->
+					<!-- </span> -->
 				</div>					
 			</div>
 		</div>
 	</div>
+
+	<accordion close-others="false">
+		<accordion-group is-open="commentAccord.commentOpen" panel-class="success" ng-init="commentAccord = {commentOpen: false}">
+
+			<accordion-heading>
+				<span class="hover-pointer">Comments</span>
+				<span class="pull-right hover-pointer" ng-show="!commentAccord.commentOpen"><icon id="chevron-down"></icon></span>
+				<span class="pull-right hover-pointer" ng-show="commentAccord.commentOpen"><icon id="chevron-up"></icon></span>
+			</accordion-heading>
+			<comment resource-id="{{sprint.$id()}}" for-resource="sprints" user-id="{{security.currentUser.ID}}"></comment>
+			<span class="pull-right hover-pointer" ng-show="commentAccord.commentOpen" ng-click="commentAccord.commentOpen = false"><icon id="chevron-up"></icon></span>
+		</accordion-group>
+<!-- <accordion-group-chevron heading="Comments" panel-class="success"> -->
+<!-- 	<comment resource-id="{{project.$id()}}" for-resource="projects" user-id="{{security.currentUser.ID}}"></comment> -->
+<!-- </accordion-group-chevron> -->
+	</accordion>
+	<accordion close-others="false">
+	<accordion-group is-open="documentAccord.documentOpen" panel-class="success" ng-init="documentAccord = {documentOpen: false}">
+		<accordion-heading>
+		<span class="hover-pointer">Attach a Document</span>
+		<span class="pull-right hover-pointer" ng-show="!documentAccord.documentOpen"><icon id="chevron-down"></icon></span>
+		<span class="pull-right hover-pointer" ng-show="documentAccord.documentOpen"><icon id="chevron-up"></icon></span>
+		</accordion-heading>
+		<document resource-id="{{sprint.$id()}}" for-resource="sprints"></document>
+		<span class="pull-right hover-pointer" ng-show="documentAccord.documentOpen" ng-click="documentAccord.documentOpen = false"><icon id="chevron-up"></icon></span>
+	</accordion-group>
+	</accordion>
+
 	<!-- -------------------------------------------------- -->
 	<!-- Other Entities -->
 	<!-- TODO: Implement this with ng-repeat or in separate template files -->
 	<!-- -------------------------------------------------- -->
 	<div class="panel panel-default">
 		<tabset justified="true" type="pills">
+			<tab heading="Dashboard">
+
+				<accordion close-others="true">
+					
+					<!-- -------------------------------------------------- -->
+					<!-- Pie Charts -->
+					<!-- -------------------------------------------------- -->
+					<accordion-group is-open="pieAccord.pieOpen" panel-class="warning" ng-init="pieAccord = {pieOpen: true}">
+						<accordion-heading>
+							<span class="hover-pointer">Break Downs</span>
+							<span class="pull-right hover-pointer" ng-show="!pieAccord.pieOpen"><icon id="chevron-down"></icon></span>
+							<span class="pull-right hover-pointer" ng-show="pieAccord.pieOpen"><icon id="chevron-up"></icon></span>
+						</accordion-heading>
+						<pie-chart items="tasks" fetchingitems="fetchingTasks" chart-config="pieChartConfig"></pie-chart>		
+						<span class="pull-right hover-pointer" ng-show="pieAccord.pieOpen" ng-click="pieAccord.pieOpen = false"><icon id="chevron-up"></icon></span>
+					</accordion-group>
+
+
+					<!-- -------------------------------------------------- -->
+					<!-- Burn down Charts -->
+					<!-- -------------------------------------------------- -->
+					<accordion-group is-open="burnDownAccord.burnDownOpen" panel-class="warning" ng-init="burnDownAccord = {burnDownOpen: false}">
+						<accordion-heading>
+							<span class="hover-pointer">Burn Downs</span>
+							<span class="pull-right hover-pointer" ng-show="!burnDownAccord.burnDownOpen"><icon id="chevron-down"></icon></span>
+							<span class="pull-right hover-pointer" ng-show="burnDownAccord.burnDownOpen"><icon id="chevron-up"></icon></span>
+						</accordion-heading>
+						<!-- <burn-down-chart items="tasks" fetchingitems="fetchingTasks" chart-config="burnDownChartConfig"></burn-down-chart> -->
+						<span class="pull-right hover-pointer" ng-show="burnDownAccord.burnDownOpen" ng-click="burnDownAccord.burnDownOpen = false"><icon id="chevron-up"></icon></span>
+					</accordion-group>
+
+					<!-- -------------------------------------------------- -->
+					<!-- Kanban Board -->
+					<!-- -------------------------------------------------- -->
+					<accordion-group is-open="kanbanAccord.kanbanOpen" panel-class="warning" ng-init="kanbanAccord = {kanbanOpen: false}">
+						<accordion-heading>
+							<span class="hover-pointer">Kanban</span>
+							<span class="pull-right hover-pointer" ng-show="!kanbanAccord.kanbanOpen"><icon id="chevron-down"></icon></span>
+							<span class="pull-right hover-pointer" ng-show="kanbanAccord.kanbanOpen"><icon id="chevron-up"></icon></span>
+						</accordion-heading>
+						<!-- <kanban items="tasks" fetchingitems="fetchingTasks" kanban-config="kanbanConfig"></kanban> -->
+						<span class="pull-right hover-pointer" ng-show="kanbanAccord.kanbanOpen" ng-click="kanbanAccord.kanbanOpen = false"><icon id="chevron-up"></icon></span>
+					</accordion-group>
+					
+					<!-- -------------------------------------------------- -->
+					<!-- Gantt Charts -->
+					<!-- -------------------------------------------------- -->
+					<accordion-group is-open="ganttAccord.ganttOpen" panel-class="warning" ng-init="ganttAccord = {ganttOpen: false}">
+						<accordion-heading>
+							<span class="hover-pointer">Time Lines</span>
+							<span class="pull-right hover-pointer" ng-show="!ganttAccord.ganttOpen"><icon id="chevron-down"></icon></span>
+							<span class="pull-right hover-pointer" ng-show="ganttAccord.ganttOpen"><icon id="chevron-up"></icon></span>
+						</accordion-heading>
+
+						<!-- This Sprint -->
+						<gantt-chart
+							 items="sprints"
+							 resourceconf="sprintsGanttConf"
+							 item-to-task-data-source="sprintData(item)"
+							 fetchingitems="fetchingSprints"
+							 title="Sprint Gantt View"
+							 >
+						</gantt-chart>
+
+						<!-- Tasks -->
+						<gantt-chart
+							 items="tasks"
+							 resourceconf="tasksGanttConf"
+							 item-to-task-data-source="taskData(item)"
+							 fetchingitems="fetchingTasks"
+							 update-validator="tasksGanttUpdateValidator(item, update)"
+							 title="Tasks in {{sprint.name}}"
+							 >
+						</gantt-chart>
+
+						<!-- BacklogItems -->
+						<gantt-chart
+							 items="backlogItem"
+							 resourceconf="backlogItemsGanttConf"
+							 item-to-task-data-source="backlogItemData(item)"
+							 fetchingitems="fetchingbacklogItems"
+							 title="Backlog Items in {{sprint.name}}"
+							 >
+						</gantt-chart>
+
+					</accordion-group>
+
+
+
+				</accordion>
+
+
+			</tab>
 			<tab heading="Tasks">
 				<tableactive items="tasks" fetchingitems="fetchingTasks" resourceconf="tasksConf" ></tableactive>
 			</tab>
 		</tabset>
 	</div>
 	<!-- Other Entities End -->
+
 
 </div>

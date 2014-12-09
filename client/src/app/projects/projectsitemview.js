@@ -5,7 +5,13 @@ angular.module('projectsitemview', [
 	'resources.sprints',
 	'resources.tasks',
 	'resources.users',
+	'resources.comment',
+	'resources.document',
+	'resources.documenttype',
+	'resources.scrumUpdates',
 	'services.crud',
+	'services.i18nNotifications',
+	'services.statusLog',
 	'ui.bootstrap',
 	'security.authorization',
 	'filters.pagination',
@@ -14,38 +20,23 @@ angular.module('projectsitemview', [
 	'directives.propertybar',
 	'directives.test',
 	'directives.users',
-	'underscore'
+	'directives.comment',
+	'directives.scrum',
+	'directives.document',
+	'directives.ganttChart',
+	'directives.kanbanBoard',
+	'directives.kanbanCard',
+	'directives.kanbanBoardWithModal',
+	'directives.pieChart',
+	'directives.accordionGroupChevron',
+	'directives.focusMe',
+	'underscore',
+	'gantt',
+	'filters.groupBy',
+	'filters.momentsAgo',
+	'directives.datelookup',
+	'moment'
 ])
-
-// .config([
-// 	'crudRouteProvider',
-// 	'securityAuthorizationProvider',
-// 	function (crudRouteProvider, securityAuthorizationProvider) {
-
-// 		var getAllUsers = [
-// 			'Projects',
-// 			'Users',
-// 			'$route',
-// 			function(Projects, Users, $route){
-// 				return Users.all();
-// 			}
-// 		];
-
-// 		crudRouteProvider.routesFor('Projects')
-// 		.whenView({
-// 			project:[
-// 				'$route',
-// 				'Projects',
-// 				function ($route, Projects) {
-// 					return Projects.getById($route.current.params.projectId);
-// 				}
-// 			]
-// 			// authenticatedUser: securityAuthorizationProvider.requireAuthenticatedUser,
-// 			// users: getAllUsers,
-// 			// adminUser: securityAuthorizationProvider.requireAdminUser
-// 		});
-// 	}
-// ])
 
 .config([
 	'$routeProvider',
@@ -54,7 +45,6 @@ angular.module('projectsitemview', [
 		$routeProvider,
 		securityAuthorizationProvider
 	) {
-
 		var getAllUsers = [
 			'Projects',
 			'Users',
@@ -71,29 +61,6 @@ angular.module('projectsitemview', [
 				project: ['Projects', function(Projects) { return new Projects(); }],
 				users: getAllUsers
 				// adminUser: securityAuthorizationProvider.requireAdminUser
-
-				// project:[
-				// 	'$route',
-				// 	'Projects',
-				// 	function ($route, Projects) {
-				// 		return Projects.getById($route.current.params.projectId);
-				// 	}
-				// ]
-				// authenticatedUser: securityAuthorizationProvider.requireAuthenticatedUser
-			}
-		});
-
-		$routeProvider.when('/projects/:projectId', {
-			templateUrl:'projects/projects-itemview.tpl.html',
-			controller:'ProjectsItemViewCtrl',
-			resolve:{
-				project:[
-					'$route',
-					'Projects',
-					function ($route, Projects) {
-						return Projects.getById($route.current.params.projectId);
-					}
-				]
 				// authenticatedUser: securityAuthorizationProvider.requireAuthenticatedUser
 			}
 		});
@@ -113,6 +80,12 @@ angular.module('projectsitemview', [
 			}
 		});
 
+		$routeProvider.when('/projects/:projectId', {
+			redirectTo: function (routeParams, currentPath) {
+				return currentPath + "/view";
+			}
+		});
+
 	}
 ])
 
@@ -124,7 +97,11 @@ angular.module('projectsitemview', [
 	'Sprints',
 	'Tasks',
 	'Users',
+	'Comments',
+	'ScrumUpdates',
+	'DocumentType',
 	'crudListMethods',
+	'i18nNotifications',
 	'security',
 	'$q',
 	'filterFilter',
@@ -132,6 +109,12 @@ angular.module('projectsitemview', [
 	'paginationFilter',
 	'$timeout',
 	'_',
+	'groupByFilter',
+	'moment',
+	'statusLog',
+	'$interpolate',
+	'$modal',
+	'$log',
 	function (
 		$scope,
 		$location,
@@ -140,17 +123,33 @@ angular.module('projectsitemview', [
 		Sprints,
 		Tasks,
 		Users,
+		Comments,
+		ScrumUpdates,
+		DocumentType,
 		crudListMethods,
+		i18nNotifications,
 		security,
 		$q,
 		filter,
 		dateFilter,
 		paginationFilter,
 		$timeout,
-		_
+		_,
+		groupByFilter,
+		moment,
+		statusLog,
+		$interpolate,
+		$modal,
+		$log
 	) {
-		$scope.project = project;
 
+		$scope.project = project;
+		console.log("fetched project");
+		console.log(project);
+		$scope.Sprints = Sprints;
+		$scope.ProductBacklog = ProductBacklog;
+		$scope.Tasks = Tasks;
+		$scope.Users = Users;
 		$scope.projectsCrudHelpers = {};
 		angular.extend($scope.projectsCrudHelpers, crudListMethods('/projects'));
 
@@ -189,18 +188,20 @@ angular.module('projectsitemview', [
 				glyphiconclass : 'glyphicon glyphicon-chevron-left',
 				icon : 'chevron-left',
 				ordering : 4
-			},
-			projectprofile : {
-				name : 'Project Profile',
-				value : $scope.project.projectProfile.ID,
-				glyphiconclass : 'glyphicon glyphicon-wrench',
-				icon : 'wrench',
-				ordering : 5
 			}
+			// projectprofile : {
+			// 	name : 'Project Profile',
+			// 	value : $scope.project.projectProfile.ID,
+			// 	glyphiconclass : 'glyphicon glyphicon-wrench',
+			// 	icon : 'wrench',
+			// 	ordering : 5
+			// }
 		};
 
 		$scope.project.attributeValuesToDisplay = _.values($scope.project.attributesToDisplay);
 
+		// Note that watchCollection compares objects by unique ids until you it explicitly
+		// tell it to use angular.equals by passing "true" as the argument
 		$scope.$watchCollection('project.attributesToDisplay', function (newObj, oldObj) {
 			// Check equality just to be sure, as listeners are fired atleast
 			// once during initialization even if the object has not changed
@@ -268,7 +269,7 @@ angular.module('projectsitemview', [
 			},
 			pagination : {
 				currentPage : 1,
-				itemsPerPage : 10
+				itemsPerPage : 50
 			},
 			sortinit : {
 				fieldKey : 'priority',
@@ -298,13 +299,11 @@ angular.module('projectsitemview', [
 			]
 		};
 
-
 		/**************************************************
 		 * Fetch sprints
 		 **************************************************/
 		$scope.fetchingSprints = true;
 		$scope.sprints = [];
-
 		$scope.sprintsCrudHelpers = {};
 		angular.extend($scope.sprintsCrudHelpers, crudListMethods('/projects/'+project.$id()+'/sprints'));
 
@@ -321,7 +320,7 @@ angular.module('projectsitemview', [
 				angular.forEach($scope.sprints, function(sprint) {
 					sprint.status = sprint.getStatusPretty();
 				});
-				console.log("Succeeded to fetch sprints");
+				// console.log("Succeeded to fetch sprints");
 			},
 			function (response, responsestatus, responseheaders, responseconfig) {
 				console.log("Failed to fetch sprints");
@@ -340,7 +339,7 @@ angular.module('projectsitemview', [
 			},
 			pagination : {
 				currentPage : 1,
-				itemsPerPage : 10
+				itemsPerPage : 50
 			},
 			sortinit : {
 				fieldKey : 'name',
@@ -353,12 +352,14 @@ angular.module('projectsitemview', [
 					widthClass : 'col-md-2'
 				},
 				{
-					key : 'start',
+					key : 'startdate',
+					type: 'date',
 					prettyName : 'Start Date',
 					widthClass : 'col-md-2'
 				},
 				{
-					key : 'end',
+					key : 'enddate',
+					type: 'date',
 					prettyName : 'End Date',
 					widthClass : 'col-md-2'
 				},
@@ -370,12 +371,83 @@ angular.module('projectsitemview', [
 			]
 		};
 
+		$scope.sprintsGanttConf = {
+			resource : {
+				key : 'sprints',
+				prettyName : 'Sprints',
+				altPrettyName : 'Sprints',
+				link : $scope.manageSprints,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.sprintsCrudHelpers,
+				color: "#F1C232"
+			},
+			ganttFieldMap : {
+				row:[
+					{
+						key : 'name',
+						ganttKey: 'description'
+					}
+				],
+				task: [
+					{
+						key : 'name',
+						ganttKey: 'subject'
+					},
+					{
+						key : 'startdate',
+						type: 'date',
+						ganttKey : 'from'
+					},
+					{
+						key : 'enddate',
+						type: 'date',
+						ganttKey : 'to'
+					}
+				],
+				colorMap: function (sprint) {
+					if( sprint.isExpired() ){
+						// Note: Do no delete this color history
+						// until we have finalised on the colors
+						// return "#FFCFC3";
+						// return "#E8A729";
+						// return "#F0F0F0";
+						// return "#7F7F7F";
+						// return "#ABABAB";
+						return "#D1C4B1";
+					}
+					if( sprint.isActive() ){
+						// return "#FFFE28";
+						return "#FED559";
+						// return "#93C47D";
+					}
+					if( sprint.isPlanned() ){
+						// return "#10F0FF";
+						// return "#62C0DC";
+						return "#9FC5F8";
+					}
+					return "#FFFFFF";
+				}
+			}
+		};
+
+		// NOTE: As of now we have disabled updates in gantt charts
+		// $scope.sprintsGanttUpdateValidator = function (item, update) {
+		// 	var sprint = item;
+		// 	if( sprint.isExpired() ){
+		// 		return {
+		// 			onError: function () {
+		// 				i18nNotifications.pushForCurrentRoute('crud.sprints.expired.error', 'error', {});
+		// 			}
+		// 		};
+		// 	}
+		// 	return 1;
+		// };
+
 		/**************************************************
 		 * Fetch tasks
 		 **************************************************/
 		$scope.fetchingTasks = true;
 		$scope.tasks = [];
-
 		$scope.tasksCrudHelpers = {};
 		angular.extend($scope.tasksCrudHelpers, crudListMethods('/projects/'+project.$id()+'/tasks'));
 
@@ -383,12 +455,27 @@ angular.module('projectsitemview', [
 			$location.path('/projects/'+project.$id()+'/tasks');
 		};
 
+		$scope.taskBurnDownData = {};
+
 		Tasks.forProject(
 			project.$id(),
 			function (tasks, responsestatus, responseheaders, responseconfig) {
 				$scope.tasks = tasks;
 				$scope.fetchingTasks = false;
+				var clonedTasks = generateBurnDownData($scope.tasks);
+				// getStatusLogs(clonedTasks, 'created');
+				$scope.taskBurnDownData['data'] = getBurnDownData(clonedTasks, 'created');
+				$scope.kanbanData = getKanbanData($scope.tasks);
+				console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+				console.log("kanban data");
+				console.log($scope.kanbanData);
+
+
+				console.log("====================================================================================================");
+				console.log(clonedTasks.length);
+				console.log($scope.tasks.length);
 				console.log("Succeeded to fetch tasks");
+				console.log($scope.tasks);
 			},
 			function (response, responsestatus, responseheaders, responseconfig) {
 				$scope.fetchingTasks = false;
@@ -418,12 +505,25 @@ angular.module('projectsitemview', [
 				{
 					key : 'name',
 					prettyName : 'Name',
+					widthClass : 'col-md-4',
+					icon : ""
+				},
+				// {
+				// 	key : 'description',
+				// 	prettyName : 'Description',
+				// 	widthClass : 'col-md-4'
+				// },
+				{
+					key : 'estimatedStartDate',
+					type: 'date',
+					prettyName : 'Start Date (Estimated)',
 					widthClass : 'col-md-2'
 				},
 				{
-					key : 'description',
-					prettyName : 'Description',
-					widthClass : 'col-md-4'
+					key : 'estimatedEndDate',
+					type: 'date',
+					prettyName : 'End Date (Estimated)',
+					widthClass : 'col-md-2'
 				},
 				{
 					key : 'priority',
@@ -441,6 +541,442 @@ angular.module('projectsitemview', [
 					widthClass : 'col-md-1'
 				}
 			]
+		};
+
+
+
+		$scope.tasksGanttConf = {
+			resource : {
+				key : 'tasks',
+				prettyName : 'Tasks',
+				altPrettyName : 'Tasks',
+				link : $scope.manageTasks,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.tasksCrudHelpers,
+				color: "#F1C232"
+			},
+			ganttFieldMap : {
+				row: [
+					{
+						key : 'name',
+						ganttKey: 'description'
+					}
+				],
+				task: [
+					{
+						key : 'name',
+						ganttKey: 'subject'
+					},
+					{
+						key : 'estimatedStartDate',
+						type: 'date',
+						ganttKey : 'from'
+					},
+					{
+						key : 'estimatedEndDate',
+						type: 'date',
+						ganttKey : 'to'
+					}
+				],
+				colorMap: function (task) {
+					return task.getStatusDef().color;
+				}
+			}
+		};
+
+		$scope.tasksGanttConfTimer = {
+			resource : {
+				key : 'tasks',
+				prettyName : 'Tasks',
+				altPrettyName : 'Tasks',
+				link : $scope.manageTasks,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.tasksCrudHelpers,
+				color: "#F1C232"
+			},
+			ganttFieldMap : {
+				row: [
+					{
+						key : 'name',
+						ganttKey: 'description'
+					}
+				],
+				task: [
+					{
+						key : 'userStatus',
+						ganttKey: 'subject'
+					},
+					{
+						key : 'start',
+						type: 'date',
+						ganttKey : 'from'
+					},
+					{
+						key : 'stop',
+						type: 'date',
+						ganttKey : 'to'
+					}
+				],
+				colorMap: function (taskBurst) {
+					return taskBurst.color;
+				}
+			}
+		};
+
+		$scope.taskData = function (task) {
+			var data = [];
+			angular.forEach(task.bursts, function(burst) {
+				data.push({
+					userStatus: burst.data.status + ", " + burst.data.userId,
+					start: burst.start,
+					stop: burst.stop || Date.now(),
+					// stop: burst.stop,
+					color: task.getStatusDef(burst.data.status).color
+				});
+			});
+			return data;
+		};
+
+
+		$scope.pieChartConfig = {
+			title: 'Tasks',
+			groupBy: [
+				{
+					prettyName: 'Status',
+					key: 'status',
+					ordering: 1,
+					colorMap: function (item) {
+						return item.getStatusDef().color;
+					},
+					groupByOrder: function (item) {
+						// console.log("ordering is");
+						// console.log(item.getStatusDef().ordering);
+						return item.getStatusDef().ordering;
+						// return item.getStatusDef().ordering || 0;
+
+					}
+				},
+				{
+					prettyName: 'Type',
+					key: 'type',
+					ordering: 2,
+					colorMap: function (item) {
+						return item.getTypeDef().color;
+					},
+					groupByOrder: function (item) {
+						return item.getTypeDef().ordering;
+						// return item.getTypeDef().ordering || 0;
+					}
+				}
+			],
+			summary: [
+				{
+					prettyName: 'Estimation',
+					prettyNameSuffix: "for",
+					key: 'estimation',
+					ordering: 1
+				},
+				{
+					prettyName: 'Remaining estimation',
+					prettyNameSuffix: "for",
+					key: 'remaining',
+					ordering: 2
+				}
+			],
+			count: 1,
+			collapse: 0,
+			cumulative: 0
+		};
+
+		$scope.burnDownChartConfig = {
+			title: 'Tasks',
+			groupBy: [
+				{
+					prettyName: 'Status',
+					key: 'status',
+					ordering: 1,
+					colorMap: function (item) {
+						return item.getStatusDef().color;
+					},
+					groupByOrder: function (item) {
+						// console.log("ordering is");
+						// console.log(item.getStatusDef().ordering);
+						return item.getStatusDef().ordering;
+						// return item.getStatusDef().ordering || 0;
+
+					}
+				}
+				// {
+				// 	prettyName: 'Type',
+				// 	key: 'type',
+				// 	ordering: 2,
+				// 	colorMap: function (item) {
+				// 		return item.getTypeDef().color;
+				// 	},
+				// 	groupByOrder: function (item) {
+				// 		return item.getTypeDef().ordering;
+				// 		// return item.getTypeDef().ordering || 0;
+				// 	}
+				// }
+			],
+			summary: [
+				// {
+				// 	prettyName: 'Estimation',
+				// 	prettyNameSuffix: "for",
+				// 	key: 'estimation',
+				// 	ordering: 1
+				// },
+				// {
+				// 	prettyName: 'Remaining estimation',
+				// 	prettyNameSuffix: "for",
+				// 	key: 'remaining',
+				// 	ordering: 2
+				// }
+			],
+			count: 1,
+			collapse: 1,
+			cumulative: 0
+		};
+
+		/**************************************************
+		 * Burndown chart
+		 **************************************************/
+
+		var getRandomInt = function (min, max) {
+			return Math.floor(Math.random() * (max - min)) + min;
+		}
+
+		var addStatusLog = function (task, status, date) {
+			task.statusLogs = task.statusLogs || [];
+			task.statusLogs.push({
+				start: date,
+				data: {
+					status: status
+				}
+			});
+		};
+
+		var generateBurnDownData = function (tasks) {
+			var clonedTasks1 = _.clone(tasks);
+			var clonedTasks2 = _.clone(tasks);
+			var clonedTasks = _.flatten(clonedTasks1, clonedTasks2);
+			angular.forEach(clonedTasks, function(task) {
+				// get random days
+				var randomDaysAgoCreated = getRandomInt(1, 30);
+				var randomDaysAgoClosed = getRandomInt(1, randomDaysAgoCreated);
+				// var randomDateCreated = moment().subtract(randomDaysAgoCreated, 'days').toDate().getTime();
+				// var randomDateClosed = moment().subtract(randomDaysAgoClosed, 'days').toDate().getTime();
+				var randomDateCreated = moment().subtract(randomDaysAgoCreated, 'days').toDate();
+				var randomDateClosed = moment().subtract(randomDaysAgoClosed, 'days').toDate();
+				addStatusLog(task, 'created', randomDateCreated);
+				addStatusLog(task, 'closed', randomDateClosed)
+			});
+			return clonedTasks;
+		};
+
+		var getStatusLogs = function (tasks, status) {
+			var statusLogs = [];
+			angular.forEach(tasks, function(task) {
+				console.log('status logs are what the !! ==================================================');
+				var taskStatuLog = statusLog(task.statusLogs, {lookUp: ['status']});
+				// console.log(taskStatuLog.getLookUp('status'));
+				statusLogs.push(angular.extend({id: task.$id()}, taskStatuLog.getLookUp('status')[status]));
+			});
+			console.log('burndown source data !! ==================================================');
+			console.log(statusLogs);
+			return statusLogs;
+		};
+
+		var _getBurnDownData = function (tasks, status, offset) {
+			var statusLogs = getStatusLogs(tasks, status);
+			var datemap = {};
+			angular.forEach(statusLogs, function(statusLog) {
+				var datestring = moment(statusLog.start).format("YYYY-MM-DD");
+				datemap[datestring] = (!datemap[datestring])? 0 : datemap[datestring];
+				datemap[datestring]++;
+			});
+			console.log('date map !! ==================================================');
+			console.log(datemap);
+			var burnDownData = [];
+			var sortedDates = _.chain(datemap).keys().sortBy(function (key) { return key; }).value();
+			// angular.forEach(datemap, function(taskCount, date) {
+			// 	burnDownData.push([date, taskCount]);
+			// });
+
+			var daysago = 31, today = 1;
+			var allDays = [];
+			for(; --daysago >= today;){
+				allDays.push(moment().subtract(daysago, 'days').format("YYYY-MM-DD"));
+			}
+
+			var totalTasks = (offset)? offset : 0;
+			angular.forEach(allDays, function(datestring) {
+				totalTasks += (datemap[datestring])? datemap[datestring] : 0;
+				burnDownData.push([datestring + " 10:00AM", totalTasks]);
+			});
+
+			console.log('final burndown data !! ==================================================');
+			console.log(burnDownData);
+			return burnDownData;
+		};
+
+		var getBurnDownData = function (tasks) {
+			var totalTasks = _getBurnDownData(tasks, 'created', 20);
+			var totalClosedTasks = _getBurnDownData(tasks, 'closed');
+			var openTasks = [];
+			angular.forEach(totalTasks, function(createdData, index) {
+				var openCount = createdData[1] - totalClosedTasks[index][1];
+				openTasks.push([createdData[0], openCount]);
+			});
+
+			return [totalClosedTasks, openTasks, totalTasks];
+		};
+
+		/**************************************************
+		 * Kanban
+		 **************************************************/
+
+		$scope.tasksKanbanConf = {
+			resource : {
+				key : 'tasks',
+				prettyName : 'Tasks',
+				altPrettyName : 'Tasks',
+				link : $scope.manageTasks,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.tasksCrudHelpers
+			}
+		};
+
+		/**************************************************
+		 * Kanban Modal Data Sources
+		 **************************************************/
+
+		var getKanbanData = function (tasks) {
+			// var groupedTasks = _.groupBy(
+			// 	tasks,
+			// 	function (task) {
+			// 		return task.getStatusDef().key;
+			// 	}
+			// );
+
+			var groupedTasks = _.chain(tasks)
+			.each(
+				function (task) {
+					task.kanbanClass = "kanban_" + task.getStatusDef().key.toLowerCase();
+				}
+			)
+			.groupBy(
+				function (task) {
+					return task.getStatusDef().key;
+				}
+			)
+			.value();
+
+			return groupedTasks;
+		};
+
+		$scope.sortedStatusKeys = _.chain(Tasks.getStatusDef())
+			.sortBy(function (statusDef) { return statusDef.ordering })
+			.map(function (statusDef) { return statusDef.key })
+			.value();
+
+		console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+		console.log("sorted status keys");
+		console.log($scope.sortedStatusKeys);
+		// $scope.statusLeftRight =
+
+		// $scope.indexedStatusDef = _.chain(Tasks.getStatusDef())
+		// 	.each(function (statusDef) { statusDef.kanbanClass = "kanban_" + statusDef.key.toLowerCase(); })
+		// 	.indexBy('key')
+		// 	.value();
+
+		$scope.indexedStatusDef = _.indexBy(Tasks.getStatusDef(), 'key');
+		console.log("indexed status def");
+		console.log($scope.indexedStatusDef);
+
+		var getKanbanClassCSS = $interpolate(".kanban_{{statusKey}} { color: {{color}} }");
+
+		$scope.kanbanCSS = _.chain(Tasks.getStatusDef())
+		.map(
+			function (statusDef) {
+				return getKanbanClassCSS({
+					statusKey: statusDef.key.toLowerCase(),
+					color: statusDef.color
+				});
+			}
+		)
+		.value()
+		.join("\n");
+
+		// $scope.getKanbanClass = function (task) {
+		// 	return "kanban_" + task.getStatusDef().key.toLowerCase();
+		// }
+		console.log("kanban css");
+		console.log($scope.kanbanCSS);
+
+		$scope.statusKeyToggles = {};
+		// $scope.statusKeyToggles = _.chain($scope.sortedStatusKeys)
+		_.each($scope.sortedStatusKeys, function (statusKey) {
+			$scope.statusKeyToggles[statusKey] = {
+				leftIsOpen: false,
+				rightIsOpen: false
+			};
+		});
+
+		$scope.toggleLeft = function (statusKey) {
+			$scope.statusKeyToggles[statusKey].rightIsOpen = false;
+			$scope.statusKeyToggles[statusKey].leftIsOpen = !$scope.statusKeyToggles[statusKey].leftIsOpen
+		};
+
+		$scope.toggleRight = function (statusKey) {
+			$scope.statusKeyToggles[statusKey].leftIsOpen = false;
+			$scope.statusKeyToggles[statusKey].rightIsOpen = !$scope.statusKeyToggles[statusKey].rightIsOpen
+		};
+
+		/**************************************************
+		 * Kanban modal dialog
+		 **************************************************/
+		$scope.items = ['item1', 'item2', 'item3'];
+
+		$scope.kanbanOpen = function (size) {
+			var modalInstance = $modal.open({
+				templateUrl: 'kanbanBoardModal.html',
+				controller: 'KanbanBoardCtrl',
+				size: size,
+				resolve: {
+					// items: function () {
+					// 	return $scope.items;
+					// },
+					tasks: function () {
+						return $scope.tasks;
+					},
+					users: function () {
+						return $scope.teamMembers;
+					},
+					crudHelpers : function  () {
+						return $scope.tasksCrudHelpers;
+					}
+
+					// kanbanData: function () {
+					// 	return getKanbanData($scope.tasks);
+					// }
+				}
+			});
+
+			modalInstance.result.then(
+				function (tasks) {
+					console.log("items returned from modal");
+					console.log(tasks);
+					$scope.tasks = tasks;
+					$scope.reloadMainKanban();
+
+					// $log.info('Modal Item selected: ' + selectedItem + ' at ' + new Date());
+					// $scope.selected = selectedItem;
+				},
+				function () {
+					$log.info('Modal dismissed at: ' + new Date());
+				}
+			);
 		};
 
 		/**************************************************
@@ -475,20 +1011,6 @@ angular.module('projectsitemview', [
 			helptip: "Edit"
 		};
 
-		// $timeout(function () {
-		// 	$scope.usersConf = {
-		// 		rootDivClass: 'panel panel-default',
-		// 		// roleFunction: "",
-		// 		// action: "",
-		// 		// labelClickAction: "",
-		// 		actionName: "foo",
-		// 		actionIcon: "moo",
-		// 		actionButtonClass: "btn-warning",
-		// 		helptip: "foodit"
-		// 	};
-		// 	console.log("triggered it");
-		// }, 10000);
-
 		/**************************************************
 		 * Fetch the product owner name
 		 **************************************************/
@@ -499,13 +1021,7 @@ angular.module('projectsitemview', [
 				$scope.productOwner = productOwner;
 				$scope.fetchingProductOwner = false;
 				var productOwnerName = productOwner.getFullName();
-				// $scope.project.attributesToDisplay.productowner = {
-				// 	name : 'Product Owner',
-				// 	value : productOwnerName,
-				// 	glyphiconclass : 'glyphicon glyphicon-user',
-				// 	ordering : 7
-				// };
-				console.log("Succeded to fetch product owner");
+				// console.log("Succeded to fetch product owner");
 			},
 			function (response, responsestatus, responseheaders, responseconfig) {
 				$scope.fetchingProductOwner = false;
@@ -524,13 +1040,7 @@ angular.module('projectsitemview', [
 				$scope.fetchingScrumMaster = false;
 				$scope.scrumMaster = scrumMaster;
 				var scrumMasterName = scrumMaster.getFullName();
-				// $scope.project.attributesToDisplay.scrummaster = {
-				// 	name : 'Scrum Master',
-				// 	value : scrumMasterName,
-				// 	glyphiconclass : 'glyphicon glyphicon-user',
-				// 	ordering : 8
-				// };
-				console.log("Succeded to fetch scrum master");
+				// console.log("Succeded to fetch scrum master");
 			},
 			function (response, responsestatus, responseheaders, responseconfig) {
 				$scope.fetchingScrumMaster = false;
@@ -568,12 +1078,367 @@ angular.module('projectsitemview', [
 			function (teamMembers) {
 				$scope.teamMembers = teamMembers;
 				$scope.fetchingTeamMembers = false;
-				console.log("fetched team members");
+				// console.log("fetched team members");
 			},
 			function (response) {
 				console.log("Failed to fetch team members");
 				console.log(response);
 			}
 		);
+
+		/**************************************************
+		 * Fetch scrumupdates and add it in the dashboard page.
+		 **************************************************/
+
+		// Initializing the values.
+		$scope.showAddButton = true;
+		$scope.scrumDates = {};
+		$scope.planVal = true;
+		$scope.updateVal = true;
+		$scope.impedimentVal = true;
+		var todaysDate = new Date();
+		$scope.scrumDates.startdate = todaysDate;
+		// Setting chosendate to current date.
+		$scope.scrumDates.chosenDate = new Date();
+		$scope.scrumDates.startdate.setDate(todaysDate.getDate() - 7);
+		todaysDate = new Date();
+		$scope.scrumDates.enddate = todaysDate;
+		$scope.currentDate = todaysDate.toDateString();
+		$scope.scrumDates.chosenUser = '';
+
+		// Fetch all users on the project.
+		var productOwner = [project.productOwner];
+		var stakeHolders = project.stakeHolders;
+		var teamMembers = project.teamMembers;
+		var projectUsers = [productOwner, stakeHolders, teamMembers];
+		var projectUserIds = _.union.apply(_, projectUsers);
+		Users.getByIds(
+			projectUserIds,
+			function (users, responsestatus, responseheaders, responseconfig) {
+				$scope.scrumusers = users;
+				$scope.fetchingUsers = false;
+			},
+			function (response, responsestatus, responseheaders, responseconfig) {
+				$scope.fetchingUsers = false;
+			}
+		);
+		$scope.fetchingscrumupdates = true;
+		$scope.scrumupdates = [];
+		$scope.updateStatus = {}; // keeps track of the scrum dates which are updated.
+		$scope.allScrumUpdates = [];
+
+
+		// Fetch the scrumupdates for all users based on userids..
+		ScrumUpdates.forUsers(
+			projectUserIds,
+			function (scrumupdates, responsestatus, responseheaders, responseconfig) {
+				$scope.allScrumUpdates = scrumupdates;
+				$scope.userscrumhash = {};
+				for(var updateIndex in scrumupdates){
+					if($scope.userscrumhash[scrumupdates[updateIndex].userId]){
+						$scope.userscrumhash[scrumupdates[updateIndex].userId].push(scrumupdates[updateIndex]);
+					}
+					else{
+						$scope.userscrumhash[scrumupdates[updateIndex].userId] = [scrumupdates[updateIndex]];
+					}
+				}
+
+				// var filteredUpdates = [];
+				var startDate = new Date($scope.scrumDates.startdate);
+				var endDate = new Date($scope.scrumDates.enddate);
+
+				var filteredUpdates = [];
+				for(var taskIndex in $scope.allScrumUpdates){
+					var currentUpdate = $scope.allScrumUpdates[taskIndex];
+					var currentDate = new Date(currentUpdate.date);
+					if(currentDate >= $scope.scrumDates.startdate && currentDate <= $scope.scrumDates.enddate){
+						var dateString = currentDate.toLocaleDateString();
+						currentUpdate.dateString = dateString;
+						var timeString = currentDate.getHours()+":"+currentDate.getMinutes()+":"+currentDate.getSeconds();
+						currentUpdate.timeString = timeString;
+						filteredUpdates.push(currentUpdate);
+					}
+				}
+				$scope.scrumupdates = filteredUpdates;
+			},
+			function (response, responsestatus, responseheaders, responseconfig) {
+				console.log("Failed to fetch team members");
+				console.log(response);
+			}
+		);
+
+		function dateCompReverse(obj1, obj2){
+			var date1 = new Date(obj1.date);
+			var date2 = new Date(obj2.date);
+			return date2.getTime() - date1.getTime();
+		}
+
+		$scope.showError = function (error) {
+			return $scope.$error[error];
+		}
+
+		$scope.setValidationClasses = function () {
+			return {
+				'has-success' : $scope.$valid,
+				'has-error' : $scope.$invalid
+			};
+		}
+
+		// Whenever an user in chosen update the scrumupdate to show only for the chosen user
+		$scope.$watch('scrumDates.chosenUser', function(newObj, oldObj){
+			// Check equality just to be sure, as listeners are fired atleast
+			// once during initialization even if the object has not changed
+			if( !angular.equals(newObj, oldObj) ){
+				var filteredUpdates = [];
+				// Fetch the scrum updates for the user and update the updateStatus hash
+				// to contain only the current updates.
+				// When the user chosen is showall then make the scrumupadtes contain all list of updates
+				console.log("Chosen user is\n");
+				console.log($scope.scrumDates.chosenUser);
+				if($scope.scrumDates.chosenUser != 'showall' && $scope.scrumDates.chosenUser != ''){
+					$scope.scrumupdates = $scope.userscrumhash[$scope.scrumDates.chosenUser];
+				}
+				else{
+					$scope.scrumupdates = $scope.allScrumUpdates;
+				}
+				$scope.updateStatus = {};
+				for(var taskIndex in $scope.scrumupdates){
+					var currentUpdate = $scope.scrumupdates[taskIndex];
+					var currentDate = new Date(currentUpdate.date);
+					if(currentDate >= $scope.scrumDates.startdate && currentDate <= $scope.scrumDates.enddate){
+						$scope.updateStatus[currentDate.toDateString()] = true;
+					}
+				}
+			}
+		});
+
+		$scope.$watch('scrumDates.chosenDate', function(newObj, oldObj){
+			// Check equality just to be sure, as listeners are fired atleast
+			// once during initialization even if the object has not changed
+			if( !angular.equals(newObj, oldObj) ){
+				var chosenDate = $scope.scrumDates.chosenDate;
+				$scope.scrumDates.startdate = chosenDate;
+				var nextChosenDate = new Date(chosenDate);
+				nextChosenDate.setDate( nextChosenDate.getDate() + 1 );
+				$scope.scrumDates.enddate = nextChosenDate;
+			}
+		});
+
+
+		// Changed groupedScrumUpdates whenever the scrumupdates gets changed.
+		$scope.$watchCollection('scrumupdates', function (newUpdates, oldUpdates) {
+			if (!angular.equals(newUpdates, oldUpdates)) {
+				var newSortedUpdates = newUpdates;
+				newSortedUpdates.sort(dateCompReverse);
+				$scope.groupedScrumUpdates = groupByFilter(newSortedUpdates, "dateString");
+			};
+		});
+
+		// set validation
+		$scope.$watchCollection('scrumDates', function (newObj, oldObj) {
+			if( !angular.equals(newObj, oldObj) ){
+				if( $scope.scrumDates.startdate >= $scope.scrumDates.enddate ){
+					if( !angular.equals(newObj[0], oldObj[0]) ){
+						//$scope.scrumDates.startdate.dateField.$setValidity('datecombocheck', false);
+					}
+					if( !angular.equals(newObj[1], oldObj[1]) ){
+						//$scope.scrumDates.startdate.dateField.$setValidity('datecombocheck', false);
+					}
+				}
+				else {
+					//$scope.fromDate.dateField.$setValidity('datecombocheck', true);
+					//$scope.toDate.dateField.$setValidity('datecombocheck', true);
+					// Iterate through the scrum updates and filter only those updates which
+					// are in the current date range.
+					var filteredUpdates = [];
+					for(var taskIndex in $scope.scrumupdates){
+						var currentUpdate = $scope.scrumupdates[taskIndex];
+						var currentDate = new Date(currentUpdate.date);
+						if(currentDate >= $scope.scrumDates.startdate && currentDate <= $scope.scrumDates.enddate){
+							var dateString = currentDate.toLocaleDateString();
+							currentUpdate.dateString = dateString;
+							var timeString = currentDate.getHours()+":"+currentDate.getMinutes()+":"+currentDate.getSeconds();
+							currentUpdate.timeString = timeString;
+							filteredUpdates.push(currentUpdate);
+						}
+					}
+					$scope.scrumupdates = filteredUpdates;
+				}
+			}
+		});
+
+
+		function dateCompReverse(obj1, obj2){
+			var date1 = new Date(obj1.date);
+			var date2 = new Date(obj2.date);
+			return date2.getTime() - date1.getTime();
+		}
+		/**************************************************
+		 * ScrumUpdates End.
+		 **************************************************/
+	}
+])
+
+// .controller('KanbanBoardCtrl', [
+// 	'$scope',
+// 	'$modalInstance',
+// 	'$interpolate',
+// 	// 'items',
+// 	'Tasks',
+// 	'tasks',
+// 	'users',
+// 	'_',
+// 	function (
+// 		$scope,
+// 		$modalInstance,
+// 		$interpolate,
+// 		// items,
+// 		Tasks,
+// 		tasks,
+// 		users,
+// 		_
+// 	) {
+
+// 		// $scope.items = items;
+// 		// $scope.selected = {
+// 		// 	item: $scope.items[0]
+// 		// };
+
+// 		$scope.tasks = tasks;
+// 		$scope.users = users;
+// 		var getKanbanData = function (tasks) {
+// 			// var groupedTasks = _.groupBy(
+// 			// 	tasks,
+// 			// 	function (task) {
+// 			// 		return task.getStatusDef().key;
+// 			// 	}
+// 			// );
+
+// 			var groupedTasks = _.chain(tasks)
+// 			.each(
+// 				function (task) {
+// 					task.kanbanClass = "kanban_" + task.getStatusDef().key.toLowerCase();
+// 				}
+// 			)
+// 			.groupBy(
+// 				function (task) {
+// 					return task.getStatusDef().key;
+// 				}
+// 			)
+// 			.value();
+
+// 			return groupedTasks;
+// 		};
+
+// 		$scope.kanbanData = getKanbanData($scope.tasks);
+
+// 		$scope.sortedStatusKeys = _.chain(Tasks.getStatusDef())
+// 			.sortBy(function (statusDef) { return statusDef.ordering })
+// 			.map(function (statusDef) { return statusDef.key })
+// 			.value();
+
+// 		console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+// 		console.log("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM");
+// 		console.log("sorted status keys");
+// 		console.log($scope.sortedStatusKeys);
+// 		// $scope.statusLeftRight =
+
+// 		$scope.indexedStatusDef = _.indexBy(Tasks.getStatusDef(), 'key');
+// 		console.log("indexed status def");
+// 		console.log($scope.indexedStatusDef);
+
+// 		$scope.statusKeyToggles = {};
+// 		// $scope.statusKeyToggles = _.chain($scope.sortedStatusKeys)
+// 		_.each($scope.sortedStatusKeys, function (statusKey) {
+// 			$scope.statusKeyToggles[statusKey] = {
+// 				leftIsOpen: false,
+// 				rightIsOpen: false
+// 			};
+// 		});
+
+// 		var getKanbanClassCSS = $interpolate(".kanban_{{statusKey}} { color: {{color}} }");
+
+// 		$scope.kanbanCSS = _.chain(Tasks.getStatusDef())
+// 		.map(
+// 			function (statusDef) {
+// 				return getKanbanClassCSS({
+// 					statusKey: statusDef.key.toLowerCase(),
+// 					color: statusDef.color
+// 				});
+// 			}
+// 		)
+// 		.value()
+// 		.join("\n");
+
+// 		// $scope.getKanbanClass = function (task) {
+// 		// 	return "kanban_" + task.getStatusDef().key.toLowerCase();
+// 		// }
+// 		console.log("kanban css");
+// 		console.log($scope.kanbanCSS);
+
+// 		$scope.toggleLeft = function (statusKey) {
+// 			$scope.statusKeyToggles[statusKey].rightIsOpen = false;
+// 			$scope.statusKeyToggles[statusKey].leftIsOpen = !$scope.statusKeyToggles[statusKey].leftIsOpen
+// 		};
+
+// 		$scope.toggleRight = function (statusKey) {
+// 			$scope.statusKeyToggles[statusKey].leftIsOpen = false;
+// 			$scope.statusKeyToggles[statusKey].rightIsOpen = !$scope.statusKeyToggles[statusKey].rightIsOpen
+// 		};
+
+// 		$scope.done = function () {
+// 			// $modalInstance.close($scope.selected.item);
+// 			$modalInstance.dismiss();
+// 		};
+
+// 		$scope.cancel = function () {
+// 			$modalInstance.dismiss('cancel');
+// 		};
+// 	}
+// ]);
+
+.controller('KanbanBoardCtrl', [
+	'$scope',
+	'$modalInstance',
+	'$interpolate',
+	// 'items',
+	'crudHelpers',
+	'Tasks',
+	'tasks',
+	'users',
+	'_',
+	function (
+		$scope,
+		$modalInstance,
+		$interpolate,
+		// items,
+		crudHelpers,
+		Tasks,
+		tasks,
+		users,
+		_
+	) {
+		$scope.tasks = tasks;
+		$scope.users = users;
+		$scope.crudHelpers = crudHelpers;
+
+		$scope.tasksKanbanConf = {
+			resource : {
+				key : 'tasks',
+				prettyName : 'Tasks',
+				altPrettyName : 'Tasks',
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.crudHelpers
+			}
+		};
+
+		$scope.done = function () {
+			// $modalInstance.close($scope.selected.item);
+			$modalInstance.close($scope.tasks);
+		};
+
+		$scope.cancel = function () {
+			$modalInstance.dismiss('cancel');
+		};
 	}
 ]);

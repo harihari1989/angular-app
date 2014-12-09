@@ -16,23 +16,23 @@ angular.module('directives.datelookup', [
 				fieldName: '@name',
 				label: '@',
 				required: '@',
-				date: '='
+				date: '=',
+				toshowtext: '@?',
+				foobar: '&?'
 			},
 			link: function(scope, element, attrs, ngform) {
-
 				scope.date = scope.date || new Date();
 				scope.ngform = ngform;
 				scope.opened = false;
-
 				// Disable weekend selection
 				scope.disabled = function(date, mode) {
+					console.log("calling disabled");
 					return ( mode === 'day' && ( date.getDay() === 0 || date.getDay() === 6 ) );
 				};
 
 				scope.open = function($event) {
 					$event.preventDefault();
 					$event.stopPropagation();
-
 					scope.opened = true;
 				};
 
@@ -43,7 +43,6 @@ angular.module('directives.datelookup', [
 
 				scope.formats = ['dd-MMMM-yyyy', 'yyyy/MM/dd', 'dd/MM/yyyy', 'MM/dd/yyyy', 'shortDate'];
 				scope.format = scope.formats[3];
-
 				scope.showError = function (error) {
 					// return scope.ngform.dateField.$error[error];
 					return scope.ngform.$error[error];
@@ -56,8 +55,8 @@ angular.module('directives.datelookup', [
 					};
 				}
 
-				console.log("PRINTING THE FORM OBJECT from the isolated scope");
-				console.log(ngform);
+ 				// console.log("PRINTING THE FORM OBJECT from the isolated scope");
+				// console.log(ngform);
 			}
 		};
 	}

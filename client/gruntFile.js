@@ -27,7 +27,8 @@ module.exports = function (grunt) {
 	// grunt.registerTask('default', ['build','karma:unit']);
 	// grunt.registerTask('new', ['jshint','build','karma:unit','server']);
 	// grunt.registerTask('build', ['clean','html2js','concat','recess:build','copy:assets']);
-	grunt.registerTask('build', ['clean','html2js','concat','copy:assets']);
+	// grunt.registerTask('build', ['clean','html2js','concat','copy:assets']);
+	grunt.registerTask('build', ['clean','html2js','concat','copy:assets', 'karma:unit']);
 	grunt.registerTask('server', function() {
 		grunt.task.run([
 			// 'connect:livereload',
@@ -60,21 +61,23 @@ module.exports = function (grunt) {
 			' * Licensed <%= _.pluck(pkg.licenses, "type").join(", ") %>\n */\n',
 		src: {
 			// js: ['src/**/*.js', 'vendor/**/*.js'],
-			js: ['src/**/*.js'],
+			js: ['src/**/*.js', 'vendor/directives/**/*.js'],
 			jsTpl: ['<%= distdir %>/templates/**/*.js'],
 			specs: ['test/**/*.spec.js'],
 			scenarios: ['test/**/*.scenario.js'],
 			html: ['src/index.html'],
 			tpl: {
 				app: ['src/app/**/*.tpl.html'],
-				common: ['src/common/**/*.tpl.html']
+				common: ['src/common/**/*.tpl.html'],
+				vendor: ['vendor/directives/**/*.tpl.html', 'vendor/directives/**/*.tmpl.html']
 			},
 			less: ['src/less/main.less'], // recess:build doesn't accept ** in its file patterns
 			// less: ['src/less/stylesheet.less'], // recess:build doesn't accept ** in its file patterns
 			// less: ['src/less/*.less', 'vendor/bootstrapcss/*.css'], // recess:build doesn't accept ** in its file patterns
 			// less: ['vendor/bootstrapcss/*.css'], // recess:build doesn't accept ** in its file patterns
 			lessWatch: ['src/less/**/*.less', 'vendor/bootstrap/**/*.less', 'src/less/**/*.css', 'vendor/bootstrap/**/*.css'],
-			dbresource: ['vendor/mongolab/*.js']
+			dbresource: ['vendor/mongolab/*.js'],
+			angularui: ['vendor/angular-ui/bootstrap/*.js']
 		},
 		clean: ['<%= distdir %>/*'],
 		copy: {
@@ -112,6 +115,14 @@ module.exports = function (grunt) {
 				src: ['<%= src.tpl.common %>'],
 				dest: '<%= distdir %>/templates/common.js',
 				module: 'templates.common'
+			},
+			vendor: {
+				options: {
+					base: 'vendor'
+				},
+				src: ['<%= src.tpl.vendor %>'],
+				dest: '<%= distdir %>/templates/vendor.js',
+				module: 'templates.vendor'
 			}
 		},
 		concat:{
@@ -130,7 +141,7 @@ module.exports = function (grunt) {
 				}
 			},
 			angular: {
-				src:['vendor/angular/angular.js', 'vendor/angular/angular-route.js'],
+				src:['vendor/angular/angular.js', 'vendor/angular/angular-route.js', 'vendor/angular/angular-sanitize.js'],
 				dest: '<%= distdir %>/angular.js'
 			},
 			// angularmock: {
@@ -153,6 +164,10 @@ module.exports = function (grunt) {
 				src:['vendor/jquery-ui/*.js'],
 				dest: '<%= distdir %>/jquery-ui.js'
 			},
+			jqplot: {
+				src:['vendor/jqplot/jquery.jqplot.js', 'vendor/jqplot/plugins/*.min.js'],
+				dest: '<%= distdir %>/jquery.jqplot.js'
+			},
 
 			// Unserscore
 			underscore: {
@@ -169,7 +184,7 @@ module.exports = function (grunt) {
 			},
 
 			bootstrapcss: {
-				src:['vendor/bootstrap/dist/css/bootstrap.css', 'vendor/bootstrap/dist/css/bootstrap-theme.css', 'src/less/custom-utilities.less'],
+				src:['vendor/bootstrap/dist/css/bootstrap.css', 'vendor/bootstrap/dist/css/bootstrap-theme.css', 'src/less/custom-utilities.less', 'src/less/gantt.css', 'vendor/jqplot/jquery.jqplot.css'],
 				dest: '<%= distdir %>/<%= pkg.name %>.css'
 			},
 
@@ -235,7 +250,6 @@ module.exports = function (grunt) {
 			}
 
 		},
-
 		recess: {
 		  build: {
 		    files: {
@@ -316,11 +330,11 @@ module.exports = function (grunt) {
 			//   }
 			// },
 			all: {
-				files:['<%= src.js %>', '<%= src.specs %>', '<%= src.lessWatch %>', '<%= src.tpl.app %>', '<%= src.tpl.common %>', '<%= src.html %>', '<%= src.dbresource %>'],
+				files:['<%= src.js %>', '<%= src.specs %>', '<%= src.lessWatch %>', '<%= src.tpl.app %>', '<%= src.tpl.common %>', '<%= src.html %>', '<%= src.dbresource %>', '<%= src.angularui %>'],
 				tasks:['default','timestamp']
 			},
 			build: {
-				files:['<%= src.js %>', '<%= src.specs %>', '<%= src.lessWatch %>', '<%= src.tpl.app %>', '<%= src.tpl.common %>', '<%= src.html %>', '<%= src.dbresource %>'],
+				files:['<%= src.js %>', '<%= src.specs %>', '<%= src.lessWatch %>', '<%= src.tpl.app %>', '<%= src.tpl.common %>', '<%= src.html %>', '<%= src.dbresource %>', '<%= src.angularui %>'],
 				tasks:['build','timestamp']
 			}
 		},

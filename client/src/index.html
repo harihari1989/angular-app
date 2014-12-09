@@ -6,6 +6,7 @@
 		<!-- <script src="http://localhost:35729/livereload.js"></script> -->
 		<script type="text/javascript" src="/static/jquery.js"></script>
 		<script type="text/javascript" src="/static/jquery-ui.js"></script>
+		<script type="text/javascript" src="/static/jquery.jqplot.js"></script>
 		<script type="text/javascript" src="/static/underscore.js"></script>
 		<script type="text/javascript" src="/static/moment.js"></script>
 		<script type="text/javascript" src="/static/angular.js"></script>
@@ -15,23 +16,24 @@
 		<script type="text/javascript" src="/static/angular-moment.js"></script>
 		<script type="text/javascript" src="/static/mongolab.js"></script>
 		<script type="text/javascript" src="/static/bootstrap.js"></script>
+		<script type="text/javascript" src="/static/lodash.js"></script>
+		<script type="text/javascript" src="/static/angularjs-dropdown-multiselect.js"></script>
 		<script type="text/javascript" src="/static/<%= grunt.config.get('pkg.name') %>.js"></script>
 		<meta charset="UTF-8">
+		<!-- <base href="/"> -->
+		<base href="/hive/">
 	</head>
 
 	<body>
 
 		<div id="ngApp" lang="en" ng-app="app">
 			<div ng-controller="AppCtrl">
-				<div class="container-fluid">
-					<div class="row">
-						<div class="col-md-10 col-md-offset-1">
-							<div ng-include="'header.tpl.html'"></div>
-							<!-- <div ng-include="'notifications.tpl.html'" class="container-fluid" ng-show="notifications.getCurrent().length"></div> -->
-							<div ng-include="'notifications.tpl.html'" ng-show="notifications.getCurrent().length"></div>
-							<div ng-view></div>
-						</div>
-					</div>
+				<!-- <div class="container-fluid"> -->
+				<div class="container">
+					<div ng-include="'header.tpl.html'"></div>
+					<!-- <div ng-include="'notifications.tpl.html'" class="container-fluid" ng-show="notifications.getCurrent().length"></div> -->
+					<div ng-view></div>
+					<div ng-include="'notifications.tpl.html'" ng-show="notifications.getCurrent().length"></div>
 				</div>
 				<!-- <div ng-view class="container-fluid"></div> -->
 				<!-- <script src="http://localhost:35729/livereload.js"></script> -->

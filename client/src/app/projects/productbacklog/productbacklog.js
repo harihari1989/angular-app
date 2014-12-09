@@ -6,8 +6,16 @@ angular.module('productbacklog', [
 	'directives.icon',
 	'directives.propertybar',
 	'directives.actionicon',
+	'directives.pieChart',
+	'directives.burnDownChart',
+	'services.locationHistory',
 	'services.crud',
-	'services.i18nNotifications'
+	'services.i18nNotifications',
+	'ui.chart',
+	'filters.groupBy',
+	'filters.groupByFlat',
+	'filters.flattenGroupBy',
+	'underscore'
 ])
 
 .config([
@@ -113,7 +121,9 @@ angular.module('productbacklog', [
 	'project',
 	'backlogItem',
 	'crudListMethods',
+	'crudEditHandlers',
 	'i18nNotifications',
+	'locationHistory',
 	function(
 		$scope,
 		$location,
@@ -121,23 +131,88 @@ angular.module('productbacklog', [
 		project,
 		backlogItem,
 		crudListMethods,
-		i18nNotifications
+		crudEditHandlers,
+		i18nNotifications,
+		locationHistory
 	){
 
 		$scope.backlogItem = backlogItem;
 
 		$scope.backlogItemsCrudHelpers = {};
 		angular.extend($scope.backlogItemsCrudHelpers, crudListMethods('/projects/'+project.$id()+'/productbacklog'));
+		angular.extend($scope, crudEditHandlers('backlog'));
 
-		$scope.onSave = function () {
-			i18nNotifications.pushForNextRoute('crud.backlog.save.success', 'success', {id : backlogItem.$id()});
-			$location.path('/projects/' + project.$id() + '/productbacklog/' + backlogItem.$id());
+		$scope.back = function () {
+			locationHistory.prev()
 		};
 
-		$scope.onError = function () {
-			i18nNotifications.pushForCurrentRoute('crud.backlog.save.error', 'error');
-			$scope.updateError = true;
-		};
+		// $scope.onSave = function (savedBacklogItem) {
+		// 	// return notification spec
+		// 	return {
+		// 		key: 'crud.backlog.save.success',
+		// 		type: 'success',
+		// 		context: {id : savedBacklogItem.$id()}
+		// 	};
+
+		// 	// i18nNotifications.pushForNextRoute('crud.backlog.save.success', 'success', {id : savedBacklogItem.$id()});
+		// 	console.log("item saved is");
+		// 	console.log(savedBacklogItem);
+		// 	// locationHistory.prev();
+
+		// 	// Holding the changes here for the save and (back, view, next) functionality
+		// 	// for now just returning back to the previous screen
+		// 	// var backlogItemId = backlogItem.$id();
+		// 	// if( angular.isDefined(backlogItemId) ){
+		// 	// 	$location.path('/projects/' + project.$id() + '/productbacklog/' + backlogItemId);
+		// 	// }
+		// 	// else {
+		// 	// 	locationHistory.prev();
+		// 	// 	// $location.path('/projects/' + project.$id() + '/productbacklog/');
+		// 	// }
+		// };
+
+		// // $scope.onSaveAndNext = function (savedBacklogItem) {
+		// // 	i18nNotifications.pushForCurrentRoute('crud.backlog.save.success', 'success', {id : savedBacklogItem.$id()});
+		// // 	console.log("item is saved and creating the next item");
+		// // 	console.log(savedBacklogItem);
+		// // };
+
+		// $scope.onSaveError = function (error) {
+		// 	return {
+		// 		key: 'crud.backlog.save.error',
+		// 		type: 'error',
+		// 		context: {
+		// 			error: error
+		// 		}
+		// 	};
+		// 	// i18nNotifications.pushForCurrentRoute('crud.backlog.save.error', 'error');
+		// 	// $scope.updateError = true;
+		// };
+
+		// $scope.onRemove = function (removedBacklogItem) {
+		// 	console.log("removing backlog");
+		// 	console.log(removedBacklogItem);
+		// 	return {
+		// 		key: 'crud.backlog.remove.success',
+		// 		type: 'success',
+		// 		context: {id : removedBacklogItem.$id()}
+		// 	};
+
+		// 	// var projectId = $route.current.params.projectId;
+		// 	// var taskid = task.$id();
+		// 	// $location.path('/projects/' + projectId + '/tasks');
+		// };
+
+		// $scope.onRemoveError = function (error) {
+		// 	return {
+		// 		key: 'crud.backlog.remove.error',
+		// 		type: 'error',
+		// 		context: {
+		// 			error: error
+		// 		}
+		// 	};
+		// };
+
 	}
 ])
 
@@ -167,6 +242,10 @@ angular.module('productbacklog', [
 	'backlogItem',
 	'Tasks',
 	'$q',
+	'groupByFilter',
+	'groupByFlatFilter',
+	'flattenGroupByFilter',
+	'_',
 	function(
 		$scope,
 		$location,
@@ -174,10 +253,16 @@ angular.module('productbacklog', [
 		project,
 		backlogItem,
 		Tasks,
-		$q
+		$q,
+		groupByFilter,
+		groupByFlatFilter,
+		flattenGroupByFilter,
+		_
 	){
 
 		$scope.backlogItem = backlogItem;
+		console.log("Backlog Item=");
+		console.log(backlogItem);
 		$scope.project = project;
 
 		$scope.backlogItemsCrudHelpers = {};
@@ -220,6 +305,11 @@ angular.module('productbacklog', [
 			function (tasks, responsestatus, responseheaders, responseconfig) {
 				$scope.tasks = tasks;
 				$scope.fetchingTasks = false;
+				// getPieCharts($scope.tasks);
+				// getPieChartsNew($scope.tasks, $scope.pieChartConfigSample);
+				// $scope.groupedTasks = groupByFilter($scope.tasks, "status");
+				// console.log("grouped tasks");
+				// console.log($scope.groupedTasks);
 				console.log("Succeeded to fetch tasks");
 			},
 			function (response, responsestatus, responseheaders, responseconfig) {
@@ -250,12 +340,24 @@ angular.module('productbacklog', [
 				{
 					key : 'name',
 					prettyName : 'Name',
+					widthClass : 'col-md-4'
+				},
+				// {
+				// 	key : 'description',
+				// 	prettyName : 'Description',
+				// 	widthClass : 'col-md-4'
+				// },
+				{
+					key : 'estimatedStartDate',
+					type: 'date',
+					prettyName : 'Start Date (Estimated)',
 					widthClass : 'col-md-2'
 				},
 				{
-					key : 'description',
-					prettyName : 'Description',
-					widthClass : 'col-md-4'
+					key : 'estimatedEndDate',
+					type: 'date',
+					prettyName : 'End Date (Estimated)',
+					widthClass : 'col-md-2'
 				},
 				{
 					key : 'priority',
@@ -274,6 +376,159 @@ angular.module('productbacklog', [
 				}
 			]
 		};
+
+		$scope.tasksGanttConf = {
+			resource : {
+				key : 'tasks',
+				prettyName : 'Tasks',
+				altPrettyName : 'Tasks',
+				link : $scope.manageTasks,
+				rootDivClass : 'panel-body',
+				itemsCrudHelpers : $scope.tasksCrudHelpers,
+				color: "#F1C232"
+			},
+			ganttFieldMap : {
+				row: [
+					{
+						key : 'name',
+						ganttKey: 'description'
+					}
+				],
+				task: [
+					{
+						key : 'userStatus',
+						ganttKey: 'subject'
+					},
+					{
+						key : 'start',
+						type: 'date',
+						ganttKey : 'from'
+					},
+					{
+						key : 'stop',
+						type: 'date',
+						ganttKey : 'to'
+					}
+				],
+				colorMap: function (taskBurst) {
+					return taskBurst.color;
+				}
+			}
+		};
+
+		$scope.taskData = function (task) {
+			var data = [];
+			angular.forEach(task.bursts, function(burst) {
+				data.push({
+					userStatus: burst.data.status + ", " + burst.data.userId,
+					start: burst.start,
+					stop: burst.stop || Date.now(),
+					// stop: burst.stop,
+					color: task.getStatusDef(burst.data.status).color
+				});
+			});
+			return data;
+		};
+
+		$scope.pieChartConfig = {
+			title: 'Tasks',
+			groupBy: [
+				{
+					prettyName: 'Status',
+					key: 'status',
+					ordering: 1,
+					colorMap: function (item) {
+						return item.getStatusDef().color;
+					},
+					groupByOrder: function (item) {
+						// console.log("ordering is");
+						// console.log(item.getStatusDef().ordering);
+						return item.getStatusDef().ordering;
+						// return item.getStatusDef().ordering || 0;
+					}
+				},
+				{
+					prettyName: 'Type',
+					key: 'type',
+					ordering: 2,
+					colorMap: function (item) {
+						return item.getTypeDef().color;
+					},
+					groupByOrder: function (item) {
+						return item.getTypeDef().ordering;
+						// return item.getTypeDef().ordering || 0;
+					}
+				}
+			],
+			summary: [
+				{
+					prettyName: 'Estimation',
+					prettyNameSuffix: "for",
+					key: 'estimation',
+					ordering: 1
+				},
+				{
+					prettyName: 'Remaining estimation',
+					prettyNameSuffix: "for",
+					key: 'remaining',
+					ordering: 2
+				}
+			],
+			count: 1,
+			collapse: 1,
+			cumulative: 0
+		};
+
+		// $scope.burnDownChartConfig = {
+		// 	title: 'Tasks',
+		// 	groupBy: [
+		// 		{
+		// 			prettyName: 'Status',
+		// 			key: 'status',
+		// 			ordering: 1,
+		// 			colorMap: function (item) {
+		// 				return item.getStatusDef().color;
+		// 			},
+		// 			groupByOrder: function (item) {
+		// 				// console.log("ordering is");
+		// 				// console.log(item.getStatusDef().ordering);
+		// 				return item.getStatusDef().ordering;
+		// 				// return item.getStatusDef().ordering || 0;
+
+		// 			}
+		// 		},
+		// 		{
+		// 			prettyName: 'Type',
+		// 			key: 'type',
+		// 			ordering: 2,
+		// 			colorMap: function (item) {
+		// 				return item.getTypeDef().color;
+		// 			},
+		// 			groupByOrder: function (item) {
+		// 				return item.getTypeDef().ordering;
+		// 				// return item.getTypeDef().ordering || 0;
+		// 			}
+		// 		}
+		// 	],
+		// 	summary: [
+		// 		{
+		// 			prettyName: 'Estimation',
+		// 			prettyNameSuffix: "for",
+		// 			key: 'estimation',
+		// 			ordering: 1
+		// 		},
+		// 		{
+		// 			prettyName: 'Remaining estimation',
+		// 			prettyNameSuffix: "for",
+		// 			key: 'remaining',
+		// 			ordering: 2
+		// 		}
+		// 	],
+		// 	count: 1,
+		// 	// collapse: 0
+		// 	collapse: 0,
+		// 	cumulative: 0
+		// };
 
 	}
 ]);
